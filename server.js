@@ -1,5 +1,8 @@
 import express from "express";
 import path from "path";
+import fs from "fs";
+import crypto from "crypto";
+import multer from "multer";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -8,6 +11,23 @@ const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.PIXAZO_API_KEY || "";
 const GATEWAY = "https://gateway.pixazo.ai";
 const EXTERNAL_URL = process.env.EXTERNAL_URL || null;
+
+// Pixazo's models fetch image_url/video_url themselves — they require a public
+// HTTPS URL, not a base64 data URI. Uploaded files are written here temporarily
+// and served back as a public URL under /uploads so the gateway can fetch them.
+const UPLOADS_DIR = path.join(__dirname, "uploads");
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname || "").slice(0, 10);
+      cb(null, `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${ext}`);
+    },
+  }),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100mb
+});
 
 // Auto-pinger: ping external URL every 14 minutes to keep the service awake
 if (EXTERNAL_URL) {
@@ -29,10 +49,9 @@ if (EXTERNAL_URL) {
   }, PING_INTERVAL);
 }
 
-// 2mb was too small for base64-encoded image/video-to-video payloads,
-// which caused "PayloadTooLargeError: request entity too large".
-app.use(express.json({ limit: "100mb" }));
+app.use(express.json({ limit: "2mb" })); // no longer carries file data, base64 uploads go through /api/upload
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 function requireKey(res) {
   if (!API_KEY) {
@@ -54,6 +73,24 @@ function cleanBody(body) {
   }
   return out;
 }
+
+// Accepts a multipart file upload and returns a public URL for it, since
+// Pixazo's gateway fetches image_url/video_url itself — it can't accept
+// base64 data URIs directly.
+app.post("/api/upload", upload.single("file"), (req, res) => {
+  if (!EXTERNAL_URL) {
+    return res.status(500).json({
+      error: "Missing EXTERNAL_URL",
+      message:
+        "Set the EXTERNAL_URL environment variable to this service's public URL (e.g. https://pixazoltx.onrender.com) so uploaded files can be served back to the Pixazo gateway.",
+    });
+  }
+  if (!req.file) {
+    return res.status(400).json({ error: "No file uploaded" });
+  }
+  const url = `${EXTERNAL_URL.replace(/\/$/, "")}/uploads/${req.file.filename}`;
+  res.json({ url });
+});
 
 const MODES = {
   "text-to-video": "/ltx-video/v1/text-to-video",

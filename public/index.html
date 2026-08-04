@@ -284,7 +284,7 @@
         </div>
         <div class="source-pane" id="image_upload_pane">
           <input type="file" id="image_file" accept="image/jpeg,image/png,image/webp" />
-          <div class="hint">JPG / PNG / WEBP, under 25MB. Converted to a data URI in the browser.</div>
+          <div class="hint">JPG / PNG / WEBP, under 25MB. Uploaded to this server and passed to Pixazo as a public URL.</div>
           <img id="image_preview" class="file-preview" style="display:none;" />
         </div>
         <div class="source-pane" id="image_url_pane" style="display:none;">
@@ -301,7 +301,7 @@
         </div>
         <div class="source-pane" id="video_upload_pane">
           <input type="file" id="video_file" accept="video/mp4,video/quicktime,video/webm" />
-          <div class="hint">MP4 / MOV / WEBM. Converted to a data URI in the browser — large files may be slow to upload this way.</div>
+          <div class="hint">MP4 / MOV / WEBM. Uploaded to this server and passed to Pixazo as a public URL.</div>
           <video id="video_preview" class="file-preview" style="display:none;" controls muted></video>
         </div>
         <div class="source-pane" id="video_url_pane" style="display:none;">
@@ -454,7 +454,7 @@
 <footer>LTX 2.3 base is free during preview · fair-use rate limits apply · powered by Pixazo</footer>
 
 <script>
-  const state = { mode: "text-to-video", requestId: null, pollTimer: null, startTime: null, tickTimer: null, genToken: 0, imageDataUri: null, videoDataUri: null };
+  const state = { mode: "text-to-video", requestId: null, pollTimer: null, startTime: null, tickTimer: null, genToken: 0, imageUrl: null, videoUrl: null, imageUploading: false, videoUploading: false };
 
   const els = {
     tabs: document.querySelectorAll(".tab"),
@@ -545,34 +545,61 @@
     });
   });
 
-  function fileToDataUri(file){
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
+  // Pixazo's gateway fetches image_url/video_url itself, so it needs a real
+  // public URL — not a base64 data URI. Upload the file to our own server
+  // first and use the public URL it hands back.
+  async function uploadFile(file){
+    const form = new FormData();
+    form.append("file", file);
+    const res = await fetch("/api/upload", { method: "POST", body: form });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.message || data.error || "Upload failed");
+    }
+    return data.url;
   }
 
   els.image_file.addEventListener("change", async () => {
     const file = els.image_file.files[0];
-    if (!file) { state.imageDataUri = null; return; }
+    if (!file) { state.imageUrl = null; return; }
     if (file.size > 25 * 1024 * 1024) {
       showError("Image is over 25MB — pick a smaller file or paste a hosted URL instead.");
       els.image_file.value = "";
       return;
     }
-    state.imageDataUri = await fileToDataUri(file);
-    els.image_preview.src = state.imageDataUri;
+    clearError();
+    els.image_preview.src = URL.createObjectURL(file); // local preview only
     els.image_preview.style.display = "block";
+    state.imageUrl = null;
+    state.imageUploading = true;
+    try {
+      state.imageUrl = await uploadFile(file);
+    } catch (err) {
+      showError(`Image upload failed: ${err.message}`);
+      els.image_file.value = "";
+      els.image_preview.style.display = "none";
+    } finally {
+      state.imageUploading = false;
+    }
   });
 
   els.video_file.addEventListener("change", async () => {
     const file = els.video_file.files[0];
-    if (!file) { state.videoDataUri = null; return; }
-    state.videoDataUri = await fileToDataUri(file);
-    els.video_preview.src = state.videoDataUri;
+    if (!file) { state.videoUrl = null; return; }
+    clearError();
+    els.video_preview.src = URL.createObjectURL(file); // local preview only
     els.video_preview.style.display = "block";
+    state.videoUrl = null;
+    state.videoUploading = true;
+    try {
+      state.videoUrl = await uploadFile(file);
+    } catch (err) {
+      showError(`Video upload failed: ${err.message}`);
+      els.video_file.value = "";
+      els.video_preview.style.display = "none";
+    } finally {
+      state.videoUploading = false;
+    }
   });
 
   function isUploadPaneActive(target){
@@ -634,11 +661,11 @@
     if (els.enhance_prompt.checked) payload.enhance_prompt = true;
 
     if (state.mode === "image-to-video") {
-      payload.image_url = isUploadPaneActive("image") ? state.imageDataUri : els.image_url.value.trim();
+      payload.image_url = isUploadPaneActive("image") ? state.imageUrl : els.image_url.value.trim();
       if (els.strength.value) payload.strength = Number(els.strength.value);
     }
     if (state.mode === "video-to-video") {
-      payload.video_url = isUploadPaneActive("video") ? state.videoDataUri : els.video_url.value.trim();
+      payload.video_url = isUploadPaneActive("video") ? state.videoUrl : els.video_url.value.trim();
       if (els.strength.value) payload.strength = Number(els.strength.value);
     }
     return payload;
@@ -653,11 +680,13 @@
     }
 
     if (state.mode === "image-to-video") {
-      const hasSource = isUploadPaneActive("image") ? Boolean(state.imageDataUri) : Boolean(els.image_url.value.trim());
+      if (isUploadPaneActive("image") && state.imageUploading) return showError("Image is still uploading — wait a moment and try again.");
+      const hasSource = isUploadPaneActive("image") ? Boolean(state.imageUrl) : Boolean(els.image_url.value.trim());
       if (!hasSource) return showError("Upload an image or paste an image URL for Image → Video.");
     }
     if (state.mode === "video-to-video") {
-      const hasSource = isUploadPaneActive("video") ? Boolean(state.videoDataUri) : Boolean(els.video_url.value.trim());
+      if (isUploadPaneActive("video") && state.videoUploading) return showError("Video is still uploading — wait a moment and try again.");
+      const hasSource = isUploadPaneActive("video") ? Boolean(state.videoUrl) : Boolean(els.video_url.value.trim());
       if (!hasSource) return showError("Upload a video or paste a video URL for Video → Video.");
     }
 
