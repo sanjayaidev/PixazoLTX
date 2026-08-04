@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: ltx-2-3-studio
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PIXAZO_API_KEY
+        sync: false

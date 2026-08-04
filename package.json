@@ -1,0 +1,16 @@
+{
+  "name": "ltx-2-3-studio",
+  "version": "1.0.0",
+  "description": "Web app for generating video with the free LTX 2.3 API",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  }
+}
