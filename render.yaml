@@ -8,3 +8,5 @@ services:
     envVars:
       - key: PIXAZO_API_KEY
         sync: false
+      - key: EXTERNAL_URL
+        sync: false
