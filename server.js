@@ -7,6 +7,27 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const API_KEY = process.env.PIXAZO_API_KEY || "";
 const GATEWAY = "https://gateway.pixazo.ai";
+const EXTERNAL_URL = process.env.EXTERNAL_URL || null;
+
+// Auto-pinger: ping external URL every 14 minutes to keep the service awake
+if (EXTERNAL_URL) {
+  const PING_INTERVAL = 14 * 60 * 1000; // 14 minutes in milliseconds
+  console.log(`Auto-pinger enabled for ${EXTERNAL_URL} (every 14 minutes)`);
+  
+  // Initial ping after a short delay
+  setTimeout(() => {
+    fetch(EXTERNAL_URL, { method: "GET" })
+      .then(res => console.log(`[Pinger] Initial ping: ${res.status}`))
+      .catch(err => console.error(`[Pinger] Initial ping failed:`, err.message));
+  }, 5000);
+  
+  // Recurring ping every 14 minutes
+  setInterval(() => {
+    fetch(EXTERNAL_URL, { method: "GET" })
+      .then(res => console.log(`[Pinger] Pinged: ${res.status}`))
+      .catch(err => console.error(`[Pinger] Failed:`, err.message));
+  }, PING_INTERVAL);
+}
 
 app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
