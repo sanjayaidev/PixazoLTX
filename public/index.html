@@ -514,8 +514,9 @@
       els.imageUrlField.style.display = state.mode === "image-to-video" ? "block" : "none";
       els.videoUrlField.style.display = state.mode === "video-to-video" ? "block" : "none";
       els.strengthField.style.display = (state.mode === "image-to-video" || state.mode === "video-to-video") ? "block" : "none";
-      els.image_url.required = state.mode === "image-to-video";
-      els.video_url.required = state.mode === "video-to-video";
+      // Don't use HTML5 required on toggle fields - we validate in JS instead
+      els.image_url.required = false;
+      els.video_url.required = false;
 
       document.getElementById("videoBasicFields").style.display = isVideo ? "grid" : "none";
       document.getElementById("videoAdvancedFields").style.display = isVideo ? "block" : "none";
