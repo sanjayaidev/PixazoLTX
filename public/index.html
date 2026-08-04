@@ -131,9 +131,9 @@
   }
 
   /* Tabs styled like mode-select dial */
-  .tabs{ display:flex; gap:2px; margin-bottom:18px; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
+  .tabs{ display:flex; flex-wrap:wrap; gap:2px; margin-bottom:18px; border:1px solid var(--line); border-radius:4px; overflow:hidden; }
   .tab{
-    flex:1; text-align:center; padding:10px 6px;
+    flex:1 1 30%; text-align:center; padding:10px 4px;
     background:var(--panel-2); color:var(--muted);
     font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:0.5px;
     cursor:pointer; border:none; text-transform:uppercase;
@@ -160,6 +160,26 @@
   .toggle-row{ display:flex; align-items:center; gap:8px; margin-top:14px; }
   .toggle-row input{ width:auto; }
   .toggle-row label{ margin:0; text-transform:none; font-size:12px; }
+
+  .source-toggle{ display:flex; gap:6px; margin-top:6px; }
+  .src-btn{
+    flex:1; padding:7px 8px; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:3px; color:var(--muted); font-family:'IBM Plex Mono',monospace;
+    font-size:11px; text-transform:uppercase; letter-spacing:0.5px; cursor:pointer;
+  }
+  .src-btn.active{ background:var(--amber-dim); color:var(--amber); border-color:var(--amber-dim); }
+  .source-pane{ margin-top:10px; }
+  input[type=file]{
+    width:100%; background:var(--bg); border:1px dashed var(--line); border-radius:3px;
+    color:var(--muted); padding:9px 10px; font-family:'IBM Plex Mono',monospace; font-size:12px;
+  }
+  .file-preview{
+    display:block; margin-top:10px; max-width:100%; max-height:160px;
+    border:1px solid var(--line); border-radius:3px; background:#000;
+  }
+  .file-progress{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--sage); margin-top:6px; display:none;
+  }
 
   details.advanced{ margin-top:16px; border-top:1px solid var(--line); padding-top:10px; }
   details.advanced summary{
@@ -248,6 +268,8 @@
       <button class="tab active" data-mode="text-to-video">Text → Video</button>
       <button class="tab" data-mode="image-to-video">Image → Video</button>
       <button class="tab" data-mode="video-to-video">Video → Video</button>
+      <button class="tab" data-mode="text-to-image">Text → Image</button>
+      <button class="tab" data-mode="text-to-audio">Text → Audio</button>
     </div>
 
     <form id="genForm">
@@ -255,15 +277,37 @@
       <textarea id="prompt" placeholder="A red rose blooming in slow motion, golden hour" maxlength="4000" required></textarea>
 
       <div id="imageUrlField" style="display:none;">
-        <label class="required">Source image URL</label>
-        <input type="url" id="image_url" placeholder="https://example.com/image.jpg" />
-        <div class="hint">Public https URL, JPG/PNG/WEBP, under 25MB.</div>
+        <label class="required">Source image</label>
+        <div class="source-toggle">
+          <button type="button" class="src-btn active" data-target="image" data-src="upload">Upload file</button>
+          <button type="button" class="src-btn" data-target="image" data-src="url">Paste URL</button>
+        </div>
+        <div class="source-pane" id="image_upload_pane">
+          <input type="file" id="image_file" accept="image/jpeg,image/png,image/webp" />
+          <div class="hint">JPG / PNG / WEBP, under 25MB. Converted to a data URI in the browser.</div>
+          <img id="image_preview" class="file-preview" style="display:none;" />
+        </div>
+        <div class="source-pane" id="image_url_pane" style="display:none;">
+          <input type="url" id="image_url" placeholder="https://example.com/image.jpg" />
+          <div class="hint">Public https URL, JPG/PNG/WEBP, under 25MB.</div>
+        </div>
       </div>
 
       <div id="videoUrlField" style="display:none;">
-        <label class="required">Source video URL</label>
-        <input type="url" id="video_url" placeholder="https://example.com/source.mp4" />
-        <div class="hint">Public https URL to the reference video.</div>
+        <label class="required">Source video</label>
+        <div class="source-toggle">
+          <button type="button" class="src-btn active" data-target="video" data-src="upload">Upload file</button>
+          <button type="button" class="src-btn" data-target="video" data-src="url">Paste URL</button>
+        </div>
+        <div class="source-pane" id="video_upload_pane">
+          <input type="file" id="video_file" accept="video/mp4,video/quicktime,video/webm" />
+          <div class="hint">MP4 / MOV / WEBM. Converted to a data URI in the browser — large files may be slow to upload this way.</div>
+          <video id="video_preview" class="file-preview" style="display:none;" controls muted></video>
+        </div>
+        <div class="source-pane" id="video_url_pane" style="display:none;">
+          <input type="url" id="video_url" placeholder="https://example.com/source.mp4" />
+          <div class="hint">Public https URL to the reference video.</div>
+        </div>
       </div>
 
       <div id="strengthField" style="display:none;">
@@ -272,7 +316,7 @@
         <div class="hint">How far the result may drift from the source. Lower = closer to original.</div>
       </div>
 
-      <div class="row2">
+      <div class="row2" id="videoBasicFields">
         <div>
           <label>Aspect ratio</label>
           <select id="aspect">
@@ -294,7 +338,7 @@
         </div>
       </div>
 
-      <details class="advanced">
+      <details class="advanced" id="videoAdvancedFields">
         <summary>Advanced settings</summary>
         <div class="row2">
           <div>
@@ -321,6 +365,33 @@
           <label for="enhance_prompt">Enhance prompt automatically</label>
         </div>
       </details>
+
+      <div id="imageSettingsFields" style="display:none;">
+        <div class="row2">
+          <div>
+            <label>Width</label>
+            <input type="number" id="img_width" placeholder="1024" />
+          </div>
+          <div>
+            <label>Height</label>
+            <input type="number" id="img_height" placeholder="1024" />
+          </div>
+        </div>
+        <div class="row2">
+          <div>
+            <label>Steps (max 8)</label>
+            <input type="number" id="img_num_steps" min="1" max="8" placeholder="4" />
+          </div>
+          <div>
+            <label>Seed</label>
+            <input type="number" id="img_seed" placeholder="random" />
+          </div>
+        </div>
+      </div>
+
+      <div id="audioNotConfigured" class="error-box" style="display:none; border-color: var(--sage); color: var(--sage);">
+        Pixazo Tracks' exact endpoint wasn't published in the docs I could reach. Check your Pixazo dashboard's API reference for the confirmed path, then this tab can be wired up the same way as the others.
+      </div>
 
       <button type="submit" class="generate" id="genBtn">Generate</button>
       <div class="error-box" id="errorBox"></div>
@@ -353,7 +424,7 @@
 <footer>LTX 2.3 base is free during preview · fair-use rate limits apply · powered by Pixazo</footer>
 
 <script>
-  const state = { mode: "text-to-video", requestId: null, pollTimer: null, startTime: null, tickTimer: null };
+  const state = { mode: "text-to-video", requestId: null, pollTimer: null, startTime: null, tickTimer: null, genToken: 0, imageDataUri: null, videoDataUri: null };
 
   const els = {
     tabs: document.querySelectorAll(".tab"),
@@ -364,6 +435,14 @@
     strengthField: document.getElementById("strengthField"),
     image_url: document.getElementById("image_url"),
     video_url: document.getElementById("video_url"),
+    image_file: document.getElementById("image_file"),
+    video_file: document.getElementById("video_file"),
+    image_preview: document.getElementById("image_preview"),
+    video_preview: document.getElementById("video_preview"),
+    image_upload_pane: document.getElementById("image_upload_pane"),
+    image_url_pane: document.getElementById("image_url_pane"),
+    video_upload_pane: document.getElementById("video_upload_pane"),
+    video_url_pane: document.getElementById("video_url_pane"),
     strength: document.getElementById("strength"),
     aspect: document.getElementById("aspect"),
     frame_rate: document.getElementById("frame_rate"),
@@ -372,6 +451,10 @@
     num_frames: document.getElementById("num_frames"),
     seed: document.getElementById("seed"),
     enhance_prompt: document.getElementById("enhance_prompt"),
+    img_width: document.getElementById("img_width"),
+    img_height: document.getElementById("img_height"),
+    img_num_steps: document.getElementById("img_num_steps"),
+    img_seed: document.getElementById("img_seed"),
     genBtn: document.getElementById("genBtn"),
     errorBox: document.getElementById("errorBox"),
     outputArea: document.getElementById("outputArea"),
@@ -393,13 +476,78 @@
       els.tabs.forEach(t => t.classList.remove("active"));
       tab.classList.add("active");
       state.mode = tab.dataset.mode;
+
+      const isVideo = ["text-to-video", "image-to-video", "video-to-video"].includes(state.mode);
+      const isImage = state.mode === "text-to-image";
+      const isAudio = state.mode === "text-to-audio";
+
       els.imageUrlField.style.display = state.mode === "image-to-video" ? "block" : "none";
       els.videoUrlField.style.display = state.mode === "video-to-video" ? "block" : "none";
       els.strengthField.style.display = (state.mode === "image-to-video" || state.mode === "video-to-video") ? "block" : "none";
       els.image_url.required = state.mode === "image-to-video";
       els.video_url.required = state.mode === "video-to-video";
+
+      document.getElementById("videoBasicFields").style.display = isVideo ? "grid" : "none";
+      document.getElementById("videoAdvancedFields").style.display = isVideo ? "block" : "none";
+      document.getElementById("imageSettingsFields").style.display = isImage ? "block" : "none";
+      document.getElementById("audioNotConfigured").style.display = isAudio ? "block" : "none";
+      els.genBtn.style.display = isAudio ? "none" : "block";
+      resetOutput();
+      clearError();
     });
   });
+
+  // ---- upload vs URL toggle ----
+  document.querySelectorAll(".src-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const target = btn.dataset.target;
+      const src = btn.dataset.src;
+      document.querySelectorAll(`.src-btn[data-target="${target}"]`).forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (target === "image") {
+        els.image_upload_pane.style.display = src === "upload" ? "block" : "none";
+        els.image_url_pane.style.display = src === "url" ? "block" : "none";
+      } else {
+        els.video_upload_pane.style.display = src === "upload" ? "block" : "none";
+        els.video_url_pane.style.display = src === "url" ? "block" : "none";
+      }
+    });
+  });
+
+  function fileToDataUri(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  els.image_file.addEventListener("change", async () => {
+    const file = els.image_file.files[0];
+    if (!file) { state.imageDataUri = null; return; }
+    if (file.size > 25 * 1024 * 1024) {
+      showError("Image is over 25MB — pick a smaller file or paste a hosted URL instead.");
+      els.image_file.value = "";
+      return;
+    }
+    state.imageDataUri = await fileToDataUri(file);
+    els.image_preview.src = state.imageDataUri;
+    els.image_preview.style.display = "block";
+  });
+
+  els.video_file.addEventListener("change", async () => {
+    const file = els.video_file.files[0];
+    if (!file) { state.videoDataUri = null; return; }
+    state.videoDataUri = await fileToDataUri(file);
+    els.video_preview.src = state.videoDataUri;
+    els.video_preview.style.display = "block";
+  });
+
+  function isUploadPaneActive(target){
+    const btn = document.querySelector(`.src-btn[data-target="${target}"].active`);
+    return btn && btn.dataset.src === "upload";
+  }
 
   // ---- health check ----
   fetch("/api/health").then(r => r.json()).then(d => {
@@ -455,11 +603,11 @@
     if (els.enhance_prompt.checked) payload.enhance_prompt = true;
 
     if (state.mode === "image-to-video") {
-      payload.image_url = els.image_url.value.trim();
+      payload.image_url = isUploadPaneActive("image") ? state.imageDataUri : els.image_url.value.trim();
       if (els.strength.value) payload.strength = Number(els.strength.value);
     }
     if (state.mode === "video-to-video") {
-      payload.video_url = els.video_url.value.trim();
+      payload.video_url = isUploadPaneActive("video") ? state.videoDataUri : els.video_url.value.trim();
       if (els.strength.value) payload.strength = Number(els.strength.value);
     }
     return payload;
@@ -468,13 +616,23 @@
   els.form.addEventListener("submit", async (e) => {
     e.preventDefault();
     clearError();
-    if (state.mode === "image-to-video" && !els.image_url.value.trim()) {
-      return showError("Image URL is required for Image → Video.");
-    }
-    if (state.mode === "video-to-video" && !els.video_url.value.trim()) {
-      return showError("Video URL is required for Video → Video.");
+
+    if (state.mode === "text-to-image") {
+      return submitImageGeneration();
     }
 
+    if (state.mode === "image-to-video") {
+      const hasSource = isUploadPaneActive("image") ? Boolean(state.imageDataUri) : Boolean(els.image_url.value.trim());
+      if (!hasSource) return showError("Upload an image or paste an image URL for Image → Video.");
+    }
+    if (state.mode === "video-to-video") {
+      const hasSource = isUploadPaneActive("video") ? Boolean(state.videoDataUri) : Boolean(els.video_url.value.trim());
+      if (!hasSource) return showError("Upload a video or paste a video URL for Video → Video.");
+    }
+
+    state.genToken += 1; // invalidate any in-flight poll from a previous click immediately
+    const myToken = state.genToken;
+    clearTimeout(state.pollTimer);
     els.genBtn.disabled = true;
     els.genBtn.textContent = "Submitting…";
     resetOutput();
@@ -493,10 +651,11 @@
       if (!res.ok || data.error) {
         throw new Error(data.message || data.error || "Request failed");
       }
+      if (myToken !== state.genToken) return; // superseded before the submit even finished
       state.requestId = data.request_id;
       state.startTime = Date.now();
       startTicking();
-      pollStatus();
+      pollStatus(myToken);
     } catch (err) {
       setTally("err");
       showError(err.message);
@@ -518,11 +677,16 @@
     els.timecode.textContent = fmtElapsed(Date.now() - state.startTime) + " — " + finalLabel;
   }
 
-  async function pollStatus(){
+  async function pollStatus(myToken){
     clearTimeout(state.pollTimer);
+    // If a newer generation has started since this poll chain began, stop —
+    // this is what prevents an old request's result from overwriting a newer one.
+    if (myToken !== state.genToken) return;
+
     try {
       const res = await fetch(`/api/status/${state.requestId}`);
       const data = await res.json();
+      if (myToken !== state.genToken) return; // re-check after the await
 
       if (data.status === "QUEUED") {
         els.statusText.textContent = "queued…";
@@ -552,9 +716,9 @@
         els.genBtn.textContent = "Generate";
         return;
       }
-      state.pollTimer = setTimeout(pollStatus, 6000);
+      state.pollTimer = setTimeout(() => pollStatus(myToken), 6000);
     } catch (err) {
-      state.pollTimer = setTimeout(pollStatus, 8000);
+      state.pollTimer = setTimeout(() => pollStatus(myToken), 8000);
     }
   }
 
@@ -568,6 +732,63 @@
     els.downloadLink.href = url;
     els.openLink.href = url;
     els.resultActions.style.display = "flex";
+  }
+
+  async function submitImageGeneration(){
+    if (!els.prompt.value.trim()) return showError("Prompt is required.");
+
+    state.genToken += 1;
+    const myToken = state.genToken;
+    els.genBtn.disabled = true;
+    els.genBtn.textContent = "Generating…";
+    resetOutput();
+    els.statusLine.style.display = "flex";
+    els.statusText.textContent = "generating (synchronous, usually a few seconds)…";
+    els.statusDot.className = "dot live";
+    setTally("live");
+    setProgress(60);
+    state.startTime = Date.now();
+    startTicking();
+
+    const payload = { prompt: els.prompt.value.trim() };
+    if (els.img_width.value) payload.width = Number(els.img_width.value);
+    if (els.img_height.value) payload.height = Number(els.img_height.value);
+    if (els.img_num_steps.value) payload.num_steps = Number(els.img_num_steps.value);
+    if (els.img_seed.value) payload.seed = Number(els.img_seed.value);
+
+    try {
+      const res = await fetch("/api/image/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (myToken !== state.genToken) return; // a newer generation superseded this one
+      if (!res.ok || data.error || !data.output) {
+        throw new Error(data.message || data.error || "Image generation failed.");
+      }
+      setProgress(100);
+      setTally("done");
+      els.statusDot.className = "dot done";
+      els.statusText.textContent = "complete";
+      stopTicking("COMPLETE");
+      els.outputArea.innerHTML = `<img src="${data.output}" alt="Generated image" style="max-width:100%; max-height:460px; border-radius:4px; border:1px solid var(--line);" />`;
+      els.downloadLink.href = data.output;
+      els.openLink.href = data.output;
+      els.resultActions.style.display = "flex";
+    } catch (err) {
+      if (myToken !== state.genToken) return;
+      setTally("err");
+      els.statusDot.className = "dot err";
+      els.statusText.textContent = "failed";
+      stopTicking("FAILED");
+      showError(err.message);
+    } finally {
+      if (myToken === state.genToken) {
+        els.genBtn.disabled = false;
+        els.genBtn.textContent = "Generate";
+      }
+    }
   }
 </script>
 </body>

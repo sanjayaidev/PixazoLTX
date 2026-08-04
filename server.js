@@ -62,6 +62,38 @@ app.post("/api/generate/:mode", async (req, res) => {
   }
 });
 
+// Flux 1 Schnell (free image) — this endpoint is synchronous: no QUEUED/PROCESSING
+// polling, the response comes back with the finished image URL directly.
+app.post("/api/image/generate", async (req, res) => {
+  if (!requireKey(res)) return;
+  try {
+    const upstream = await fetch(`${GATEWAY}/flux-1-schnell/v1/getData`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Ocp-Apim-Subscription-Key": API_KEY,
+      },
+      body: JSON.stringify(cleanBody(req.body)),
+    });
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    res.status(502).json({ error: "Upstream request failed", message: String(err) });
+  }
+});
+
+// Pixazo Tracks (free audio) — the exact gateway path for this model wasn't
+// discoverable in Pixazo's public docs at build time (unlike paid audio models,
+// e.g. Ace Step at /ace-step-xl/v1/generate, which are documented). Check your
+// Pixazo dashboard's API reference for the confirmed endpoint and fill it in below.
+app.post("/api/audio/generate", async (_req, res) => {
+  res.status(501).json({
+    error: "Not configured",
+    message:
+      "Pixazo Tracks' exact endpoint path wasn't in the public docs. Find it in your Pixazo dashboard API reference, then set TRACKS_PATH in server.js.",
+  });
+});
+
 app.get("/api/status/:requestId", async (req, res) => {
   if (!requireKey(res)) return;
   try {

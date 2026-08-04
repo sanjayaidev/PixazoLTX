@@ -24,12 +24,14 @@ Open http://localhost:3000
 
 ## Files
 
-- `server.js` — Express server, proxies `/api/generate/:mode` and `/api/status/:id` to `gateway.pixazo.ai` with your key attached server-side.
-- `public/index.html` — the UI (single file, no build step).
+- `server.js` — Express server, proxies `/api/generate/:mode` (video) and `/api/image/generate` (image) to `gateway.pixazo.ai` with your key attached server-side. `/api/audio/generate` is a stub — see below.
+- `public/index.html` — the UI (single file, no build step). Tabs: Text→Video, Image→Video, Video→Video, Text→Image, Text→Audio.
 - `render.yaml` — optional Render blueprint.
 
 ## Notes
 
-- Image → Video and Video → Video require a **publicly accessible** URL for the source image/video (upload it somewhere first — this app doesn't host files).
+- Image → Video and Video → Video support both a file picker (converted to a base64 data URI client-side) and pasting a public URL. If the gateway rejects data URIs with a 400, switch to a hosted URL instead.
+- Text → Image uses Flux 1 Schnell (free), which is **synchronous** — no polling, the response comes back with the finished image URL directly.
+- Text → Audio (Pixazo Tracks) is not wired up yet: its exact gateway endpoint path wasn't published anywhere in Pixazo's public docs at the time this was built (unlike paid audio models such as Ace Step, which do have a documented path). Check your Pixazo dashboard's API reference once you have a key, then fill in the `TRACKS_PATH` in `server.js`'s `/api/audio/generate` route the same way the other routes are wired.
 - The free tier is rate-limited (fair use) — if you get a 429, wait and retry.
 - Video → Video's exact optional parameters weren't fully visible in the source docs beyond `prompt`, `video_url`, and `aspect`; the app also sends `strength` for it, but drop that field in `server.js`/`index.html` if the API rejects it.
