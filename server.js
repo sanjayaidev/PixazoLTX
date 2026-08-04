@@ -36,6 +36,7 @@ const MODES = {
   "text-to-video": "/ltx-video/v1/text-to-video",
   "image-to-video": "/ltx-video/v1/image-to-video",
   "video-to-video": "/ltx-video/v1/video-to-video",
+  "text-to-audio": "/tracks/v1/generate",
 };
 
 app.post("/api/generate/:mode", async (req, res) => {
@@ -82,17 +83,6 @@ app.post("/api/image/generate", async (req, res) => {
   }
 });
 
-// Pixazo Tracks (free audio) — the exact gateway path for this model wasn't
-// discoverable in Pixazo's public docs at build time (unlike paid audio models,
-// e.g. Ace Step at /ace-step-xl/v1/generate, which are documented). Check your
-// Pixazo dashboard's API reference for the confirmed endpoint and fill it in below.
-app.post("/api/audio/generate", async (_req, res) => {
-  res.status(501).json({
-    error: "Not configured",
-    message:
-      "Pixazo Tracks' exact endpoint path wasn't in the public docs. Find it in your Pixazo dashboard API reference, then set TRACKS_PATH in server.js.",
-  });
-});
 
 app.get("/api/status/:requestId", async (req, res) => {
   if (!requireKey(res)) return;

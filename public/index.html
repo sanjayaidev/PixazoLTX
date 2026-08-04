@@ -389,8 +389,38 @@
         </div>
       </div>
 
-      <div id="audioNotConfigured" class="error-box" style="display:none; border-color: var(--sage); color: var(--sage);">
-        Pixazo Tracks' exact endpoint wasn't published in the docs I could reach. Check your Pixazo dashboard's API reference for the confirmed path, then this tab can be wired up the same way as the others.
+      <div id="audioSettingsFields" style="display:none;">
+        <label>Lyrics (optional)</label>
+        <textarea id="audio_lyrics" placeholder="[verse]&#10;...&#10;[chorus]&#10;...&#10;&#10;Leave blank for instrumental."></textarea>
+        <div class="toggle-row">
+          <input type="checkbox" id="audio_instrumental" />
+          <label for="audio_instrumental">Instrumental (ignore lyrics, no vocals)</label>
+        </div>
+        <div class="row2">
+          <div>
+            <label>Duration (10–600s)</label>
+            <input type="number" id="audio_duration" min="10" max="600" placeholder="30" />
+          </div>
+          <div>
+            <label>BPM (30–300)</label>
+            <input type="number" id="audio_bpm" min="30" max="300" placeholder="auto" />
+          </div>
+        </div>
+        <details class="advanced">
+          <summary>Advanced settings</summary>
+          <div class="row2">
+            <div>
+              <label>Inference steps</label>
+              <input type="number" id="audio_infer_steps" placeholder="25" />
+            </div>
+            <div>
+              <label>Guidance scale</label>
+              <input type="number" id="audio_guidance_scale" step="0.1" placeholder="7.5" />
+            </div>
+          </div>
+          <label>Seed</label>
+          <input type="number" id="audio_seed" placeholder="-1 (random)" />
+        </details>
       </div>
 
       <button type="submit" class="generate" id="genBtn">Generate</button>
