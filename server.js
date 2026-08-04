@@ -29,7 +29,9 @@ if (EXTERNAL_URL) {
   }, PING_INTERVAL);
 }
 
-app.use(express.json({ limit: "2mb" }));
+// 2mb was too small for base64-encoded image/video-to-video payloads,
+// which caused "PayloadTooLargeError: request entity too large".
+app.use(express.json({ limit: "100mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 function requireKey(res) {
